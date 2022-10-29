@@ -1,3 +1,4 @@
+from ast import parse
 import datetime
 import json
 from pickletools import read_stringnl
@@ -26,28 +27,47 @@ def run_query(client, query_string):
     try:
         paginator = client.get_paginator('query')
         page_iterator = paginator.paginate(QueryString=query_string)
+        result = []
         for page in page_iterator:
-            _parse_query_result(page)
+            a = _parse_query_result(page)
+            result.append(a)
+        return result
     except Exception as err:
         print("Exception while running query:", err)
 
 
 def _parse_query_result(query_result):
-    for a in query_result:
-        rows = a['Rows']
-        for row in rows: 
-            print(row)
-        # mix = a['energy-mix']
-        # print(f"Record from {a['time']} with coal {mix['coal']} and wind {mix['wind']}")
+    print(query_result)
+    columns = query_result['ColumnInfo']
+    print(columns)
+    rows = query_result['Rows']
+    output = []
+    for row in rows: 
+        print(row)
+        parsedRow = {}
+
+        data = row['Data']
+        print(data)
+        i = 0
+        for column in columns: 
+            print(f"column pos {i} with value {column['Name']}")
+            parsedRow[column['Name']] = data[i]
+            i = i + 1
+
+        print(parsedRow)
+        output.append(parsedRow)
+
+    return output
+
 
 def lambda_handler(event, context):
     session = boto3.Session()
     client = session.client('timestream-query', config=Config(read_timeout=20, max_pool_connections=5000,
                                                               retries={'max_attempts': 10}))
 
-    run_query(client, event['query'])
+    result = run_query(client, event['query'])
 
     return {
         'statusCode': 200,
-        'body': json.dumps('Job successful')
+        'body': json.dumps(result)
     }
